@@ -637,10 +637,13 @@ class GWNCoordinator(DataUpdateCoordinator[GWNData]):
         self, network_id: int, aps: dict[str, dict[str, Any]]
     ) -> None:
         """Add device type, switch ports and firmware info to the devices."""
-        infos = await asyncio.gather(
-            *(self.client.get_device_info(network_id, mac) for mac in aps),
-            return_exceptions=True,
-        )
+        infos = []
+        for mac in aps:
+            try:
+                infos.append(await self.client.get_device_info(network_id, mac))
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("No info for %s: %s", mac, err)
+                infos.append(err)
         for (mac, ap), info in zip(aps.items(), infos, strict=True):
             if isinstance(info, GWNAuthError):
                 raise info
@@ -738,10 +741,12 @@ class GWNCoordinator(DataUpdateCoordinator[GWNData]):
                 _LOGGER.debug("Network %s has no devices, skipping it", network_id)
                 continue
             data.networks[network_id] = time_zone
-            details = await asyncio.gather(
-                *(self.client.get_device_details(mac) for mac in network_aps),
-                return_exceptions=True,
-            )
+            details = []
+            for mac in network_aps:
+                try:
+                    details.append(await self.client.get_device_details(mac))
+                except Exception as err:  # noqa: BLE001
+                    details.append(err)
             for (mac, ap), detail in zip(network_aps.items(), details, strict=True):
                 if isinstance(detail, GWNAuthError):
                     raise detail
